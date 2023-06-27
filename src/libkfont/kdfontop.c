@@ -56,37 +56,58 @@ get_font_kdfontop(struct kfont_context *ctx, int consolefd,
 {
 	struct console_font_op cfo;
 
-#ifdef KD_FONT_OP_GET_TALL
-	cfo.op = KD_FONT_OP_GET_TALL;
-#else
 	cfo.op = KD_FONT_OP_GET;
-#endif
 	cfo.flags = 0;
-	cfo.width = 64;
-	cfo.height = 128;
-	cfo.charcount = *count;
-	cfo.data = buf;
+	cfo.width = 32;
+	cfo.height = 32;
+	cfo.charcount = (sizeof(unsigned char) * MAXFONTSIZE) / (64 * 128 / 8); /* max size 64x128, 8 bits/byte */;
+	cfo.data = NULL;
 
+	/*
+	 * Check font height and width. We can't do this in one request because
+	 * if KD_FONT_OP_GET_TALL is used then vpitch will be less than 32 for
+	 * 8x16 fonts which will break saving the font to a file. After that,
+	 * such a saved font cannot be distinguished from the old fonts by the
+	 * header.
+	 *
+	 * When we learn how to take into account vpitch in psf format, then
+	 * this code can be redone.
+	 */
 	while (1) {
 		errno = 0;
-
 		if (ioctl(consolefd, KDFONTOP, &cfo)) {
 #ifdef KD_FONT_OP_GET_TALL
-			if (errno == ENOSYS && cfo.op == KD_FONT_OP_GET_TALL) {
-				/* Kernel before 6.2.  */
-				cfo.op = KD_FONT_OP_GET;
+			if (errno == ENOSPC && cfo.op != KD_FONT_OP_GET_TALL) {
+				/*
+				 * It looks like the font is larger than the
+				 * regular font and we need to check for tall
+				 * font.
+				 */
+				cfo.op = KD_FONT_OP_GET_TALL;
+				cfo.width = 64;
+				cfo.height = 128;
 				continue;
 			}
 #endif
-			if (errno != ENOSYS && errno != EINVAL) {
-				KFONT_ERR(ctx, "ioctl(KDFONTOP): %m");
-				return -1;
-			}
-			return 1;
+			KFONT_ERR(ctx, "ioctl(KDFONTOP): %m");
+			return -1;
 		}
 		break;
 	}
 
+	if (buf) {
+		/* actually get font height and width */
+		cfo.data = buf;
+		cfo.charcount = *count;
+
+		errno = 0;
+		if (ioctl(consolefd, KDFONTOP, &cfo)) {
+			if (errno != ENOSYS && errno != EINVAL) {
+				KFONT_ERR(ctx, "ioctl(KDFONTOP): %m");
+			}
+			return -1;
+		}
+	}
 
 	*count = cfo.charcount;
 	if (height)
@@ -143,7 +164,8 @@ put_font_kdfontop(struct kfont_context *ctx, int consolefd, unsigned char *buf,
 #ifdef KD_FONT_OP_SET_TALL
 		cfo.op        = KD_FONT_OP_SET_TALL;
 #else
-		return 0;
+		KFONT_ERR(ctx, _("tall font not supported"));
+		return -1;
 #endif
 	}
 	cfo.flags     = 0;
@@ -158,12 +180,8 @@ put_font_kdfontop(struct kfont_context *ctx, int consolefd, unsigned char *buf,
 		return 0;
 
 	if (errno == ENOSYS) {
-#ifdef KD_FONT_OP_SET_TALL
-		if (cfo.op == KD_FONT_OP_SET_TALL)
-			/* Let user know that we can't load such font with such kernel version */
-			return 0;
-#endif
-		return 1;
+		KFONT_ERR(ctx, _("Unable to load such font with such kernel version"));
+		return -1;
 	}
 
 	int ret = -1;
@@ -189,7 +207,8 @@ put_font_kdfontop(struct kfont_context *ctx, int consolefd, unsigned char *buf,
 		free(mybuf);
 	}
 
-	KFONT_ERR(ctx, "ioctl(KDFONTOP): %m");
+	if (ret)
+		KFONT_ERR(ctx, "ioctl(KDFONTOP): %m");
 	return ret;
 }
 
