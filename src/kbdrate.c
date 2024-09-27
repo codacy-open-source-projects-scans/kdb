@@ -308,43 +308,22 @@ ioport_set(double rate, int delay, int silent)
 }
 
 #ifdef __sparc__
-double rate = 5.0; /* Default rate */
-int delay   = 200; /* Default delay */
+static double rate = 5.0; /* Default rate */
+static int delay   = 200; /* Default delay */
 #else
-double rate = 10.9; /* Default rate */
-int delay   = 250; /* Default delay */
+static double rate = 10.9; /* Default rate */
+static int delay   = 250; /* Default delay */
 #endif
 
 static void __attribute__((noreturn))
 usage(int rc, const struct kbd_help *options)
 {
-	const struct kbd_help *h;
-
 	fprintf(stderr, _("Usage: %s [option...]\n"), get_progname());
 	fprintf(stderr, "\n");
 	fprintf(stderr, _("The program sets the keyboard repeat rate and delay in user mode.\n"));
 
-	if (options) {
-		int max = 0;
-
-		fprintf(stderr, "\n");
-		fprintf(stderr, _("Options:"));
-		fprintf(stderr, "\n");
-
-		for (h = options; h && h->opts; h++) {
-			int len = (int) strlen(h->opts);
-			if (max < len)
-				max = len;
-		}
-		max += 2;
-
-		for (h = options; h && h->opts; h++)
-			fprintf(stderr, "  %-*s %s\n", max, h->opts, h->desc);
-	}
-
-	fprintf(stderr, "\n");
-	fprintf(stderr, _("Report bugs to authors.\n"));
-	fprintf(stderr, "\n");
+	print_options(options);
+	print_report_bugs();
 
 	exit(rc);
 }

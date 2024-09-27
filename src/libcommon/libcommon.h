@@ -43,12 +43,17 @@ struct kbd_help {
 int getfd(const char *fnam);
 
 // version.c
+extern const char *progname;
+
 const char *get_progname(void);
 void set_progname(const char *name);
 
 void
 __attribute__((noreturn))
 print_version_and_exit(void);
+
+void print_options(const struct kbd_help *options);
+void print_report_bugs(void);
 
 // error.c
 void
