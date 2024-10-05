@@ -234,6 +234,9 @@ Set the font for the indicated console. (May require root permissions.)
 Force-load unicode map: Setfont`issues the system call to load the unicode
 map even if the specified map is empty.  This may be useful in unusual cases.
 .TP
+.B \-R
+Reset the screen font, size, and Unicode mapping to the bootup defaults.
+.TP
 .B \-v
 Be verbose.
 .TP
@@ -248,15 +251,15 @@ the console will be reduced to 8 (instead of 16) colors.
 
 .SH FILES
 .TP
-.I @DATADIR@/consolefonts
+.I @DATADIR@/@FONTDIR@
 The default font directory.
 .LP
 .TP
-.I @DATADIR@/unimaps
+.I @DATADIR@/@UNIMAPDIR@
 The default directory for Unicode maps.
 .LP
 .TP
-.I @DATADIR@/consoletrans
+.I @DATADIR@/@TRANSDIR@
 The default directory for screen mappings.
 .LP
 The default font is a file
