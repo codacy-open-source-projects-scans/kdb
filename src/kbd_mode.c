@@ -16,13 +16,18 @@
 #include <sysexits.h>
 #include <sys/ioctl.h>
 #include <linux/kd.h>
+#include <linux/version.h>
 
 #include "libcommon.h"
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+#define HAS_K_OFF
+#endif
 
 static void KBD_ATTR_NORETURN
 usage(int rc, const struct kbd_help *options)
 {
-	fprintf(stderr, _("Usage: %s [option...]\n"), get_progname());
+	fprintf(stderr, _("Usage: %s [option...]\n"), program_invocation_short_name);
 	fprintf(stderr, "\n");
 	fprintf(stderr, _("This utility reports or sets the keyboard mode.\n"));
 
@@ -48,6 +53,11 @@ fprint_mode(FILE *stream, int  mode)
 		case K_UNICODE:
 			fprintf(stream, _("The keyboard is in Unicode (UTF-8) mode"));
 			break;
+#ifdef HAS_K_OFF
+		case K_OFF:
+			fprintf(stream, _("The keyboard is in Disabled mode, perhaps you are using a graphical environment?"));
+			break;
+#endif
 		default:
 			fprintf(stream, _("The keyboard is in some unknown mode"));
 	}
@@ -59,15 +69,15 @@ int main(int argc, char *argv[])
 	int fd, mode, orig_mode, c, n = 0, force = 0;
 	char *console = NULL;
 
-	set_progname(argv[0]);
 	setuplocale();
 
-	const char *short_opts = "auskfC:hV";
+	const char *short_opts = "aduskfC:hV";
 	const struct option long_opts[] = {
 		{ "ascii",    no_argument,       NULL, 'a' },
 		{ "keycode",  no_argument,       NULL, 'k' },
 		{ "scancode", no_argument,       NULL, 's' },
 		{ "unicode",  no_argument,       NULL, 'u' },
+		{ "disable",  no_argument,       NULL, 'd' },
 		{ "force",    no_argument,       NULL, 'f' },
 		{ "console",  required_argument, NULL, 'C' },
 		{ "help",     no_argument,       NULL, 'h' },
@@ -79,6 +89,7 @@ int main(int argc, char *argv[])
 		{ "-k, --keycode",     _("set keycode mode.") },
 		{ "-s, --scancode",    _("set scancode mode.") },
 		{ "-u, --unicode",     _("set UTF-8 mode.") },
+		{ "-d, --disable",     _("set disable mode.") },
 		{ "-f, --force",       _("switch the mode even if it makes the keyboard unusable.") },
 		{ "-C, --console=DEV", _("the console device to be used.") },
 		{ "-V, --version",     _("print version number.")     },
@@ -92,6 +103,12 @@ int main(int argc, char *argv[])
 				if (n > 0)
 					usage(EX_USAGE, opthelp);
 				mode = K_XLATE;
+				n++;
+				break;
+			case 'd':
+				if (n > 0)
+					usage(EX_USAGE, opthelp);
+				mode = K_OFF;
 				n++;
 				break;
 			case 'u':
@@ -154,7 +171,9 @@ int main(int argc, char *argv[])
 			return EXIT_SUCCESS;
 		}
 
-		if ((mode == K_XLATE && orig_mode != K_UNICODE) || (mode == K_UNICODE && orig_mode != K_XLATE)) {
+		if ((mode == K_XLATE && orig_mode != K_UNICODE) ||
+		    (mode == K_UNICODE && orig_mode != K_XLATE) ||
+		    (mode == K_OFF)) {
 			fprint_mode(stderr, orig_mode);
 			fprintf(stderr, _("Changing to the requested mode may make "
 				"your keyboard unusable, please use -f to force the change.\n"));

@@ -7,10 +7,8 @@
 #include "libcommon.h"
 
 int
-main(int argc KBD_ATTR_UNUSED, char **argv)
+main(int argc KBD_ATTR_UNUSED, char **argv KBD_ATTR_UNUSED)
 {
-	set_progname(argv[0]);
-
 	unsigned int i;
 	FILE *f = NULL;
 	struct kbdfile *fp = NULL;
@@ -41,11 +39,21 @@ main(int argc KBD_ATTR_UNUSED, char **argv)
 		kbd_error(EXIT_FAILURE, 0, "Unable to parse keymap");
 
 	for (i = 0; i < MAX_NR_FUNC; i++) {
+		if (!lk_func_exists(ctx, (int) i))
+			kbd_error(EXIT_FAILURE, 0, "Unable to find func %d", i);
+
 		kbs.kb_func      = (unsigned char) i;
 		kbs.kb_string[0] = 0;
+
 		if (lk_get_func(ctx, &kbs) != 0)
 			kbd_error(EXIT_FAILURE, 0, "Unable to get func %d", i);
 	}
+
+	if (lk_del_func(ctx, 1) != 0)
+		kbd_error(EXIT_FAILURE, 0, "Unable to remove func 1");
+
+	if (lk_func_exists(ctx, 1))
+		kbd_error(EXIT_FAILURE, 0, "The func 1 still exist");
 
 	kbdfile_free(fp);
 	kbdfile_context_free(kbdfile_ctx);

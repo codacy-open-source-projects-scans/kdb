@@ -22,9 +22,16 @@
 #include "ksyms.h"
 #include "modifiers.h"
 
-#include "libcommon.h"
-
-#define U(x) ((x) ^ 0xf000)
+/*
+ * ++Geert: non-PC keyboards may generate keycode zero
+ *
+ * See https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/drivers/tty/vt/keyboard.c#n1968
+ */
+#if !defined(__mc68000__) && !defined(__powerpc__)
+#  define MIN_KEYCODE 1
+#else
+#  define MIN_KEYCODE 0
+#endif
 
 static void
 outchar(FILE *fd, unsigned int c, int comma)
@@ -101,15 +108,15 @@ mk_mapname(char modifier)
 	int i;
 
 	if (!modifier) {
-		strcpy(buf, "plain");
+		strlcpy(buf, "plain", sizeof(buf));
 		return buf;
 	}
 	buf[0] = 0;
 	for (i = 0; i < 8; i++)
 		if (modifier & (1 << i)) {
 			if (buf[0])
-				strcat(buf, "_");
-			strcat(buf, mods[i]);
+				strlcat(buf, "_", sizeof(buf));
+			strlcat(buf, mods[i], sizeof(buf));
 		}
 	return buf;
 }
@@ -282,7 +289,7 @@ void lk_dump_diacs(struct lk_ctx *ctx, FILE *fd)
 		dumpchar(fd, ptr->base, 0);
 #ifdef KDGKBDIACRUC
 		if (ctx->flags & LK_FLAG_PREFER_UNICODE) {
-			ksym = codetoksym(ctx, (int) ptr->result ^ 0xf000);
+			ksym = codetoksym(ctx, (int) U(ptr->result));
 			if (ksym) {
 				fprintf(fd, " to %s\n", ksym);
 			} else {
@@ -308,18 +315,14 @@ void lk_dump_diacs(struct lk_ctx *ctx, FILE *fd)
 
 void lk_dump_keymaps(struct lk_ctx *ctx, FILE *fd)
 {
-	int i, n, m, s;
-	i = n = m = s = 0;
-
-	fprintf(fd, "keymaps");
+	int i, n, m, s, kw;
+	kw = i = n = m = s = 0;
 
 	for (i = 0; i < ctx->keymap->total; i++) {
-		if (ctx->keywords & LK_KEYWORD_ALTISMETA && i == (i | M_ALT))
-			continue;
-
 		if (!lk_map_exists(ctx, i)) {
 			if (!m)
 				continue;
+			kw = kw ?: fprintf(fd, "keymaps");
 			n--, m--;
 			(n == m)
 			    ? fprintf(fd, "%c%d", (s ? ',' : ' '), n)
@@ -334,13 +337,15 @@ void lk_dump_keymaps(struct lk_ctx *ctx, FILE *fd)
 	}
 
 	if (m) {
+		kw = kw ?: fprintf(fd, "keymaps");
 		n--, m--;
 		(n == m)
 		    ? fprintf(fd, "%c%d", (s ? ',' : ' '), n)
 		    : fprintf(fd, "%c%d-%d", (s ? ',' : ' '), n, m);
 	}
 
-	fprintf(fd, "\n");
+	if (kw)
+		fprintf(fd, "\n");
 }
 
 static void
@@ -372,7 +377,7 @@ print_keysym(struct lk_ctx *ctx, FILE *fd, int code, char numeric)
 		if (!numeric && (p = codetoksym(ctx, code)) != NULL)
 			fprintf(fd, "%-16s", p);
 		else
-			fprintf(fd, "U+%04x          ", code ^ 0xf000);
+			fprintf(fd, "U+%04x          ", U(code));
 		return;
 	}
 	plus = 0;
@@ -390,6 +395,9 @@ print_keysym(struct lk_ctx *ctx, FILE *fd, int code, char numeric)
 	else if (!numeric && t == KT_META && v < 128 && v < get_sym_size(ctx, KT_LATIN) &&
 	         (p = get_sym(ctx, KT_LATIN, v))[0])
 		fprintf(fd, "Meta_%-11s", p);
+	else if (!numeric && t == KT_DEAD2 && v < 256 && v < get_sym_size(ctx, KT_LATIN) &&
+		 (p = get_sym(ctx, KT_LATIN, v))[0])
+		printf("dead2_%-10s", p);
 	else
 		fprintf(fd, "0x%04x         %s", code, plus ? "" : " ");
 }
@@ -429,7 +437,7 @@ void lk_dump_keys(struct lk_ctx *ctx, FILE *fd, lk_table_shape table, char numer
 		if (!(j != ja && lk_map_exists(ctx, j) && lk_map_exists(ctx, ja)))
 			continue;
 
-		for (i = 0; i < NR_KEYS; i++) {
+		for (i = MIN_KEYCODE; i < NR_KEYS; i++) {
 			int buf0, buf1, type;
 
 			buf0 = lk_get_key(ctx, j, i);
@@ -455,7 +463,7 @@ void lk_dump_keys(struct lk_ctx *ctx, FILE *fd, lk_table_shape table, char numer
 not_alt_is_meta:
 no_shorthands:
 
-	for (i = 0; i < NR_KEYS; i++) {
+	for (i = MIN_KEYCODE; i < NR_KEYS; i++) {
 		all_holes = 1;
 
 		for (j = 0; j < keymapnr; j++) {
@@ -485,8 +493,8 @@ no_shorthands:
 
 		if (table == LK_SHAPE_SEPARATE_LINES) {
 			for (j = 0; j < keymapnr; j++) {
-				//if (buf[j] != K_HOLE)
-				print_bind(ctx, fd, buf[j], i, j, numeric);
+				if (lk_map_exists(ctx, j))
+					print_bind(ctx, fd, buf[j], i, j, numeric);
 			}
 
 			fprintf(fd, "\n");
@@ -584,7 +592,6 @@ no_shorthands:
 				     j < keymapnr && buf[j] != K_HOLE &&
 				     (table != LK_SHAPE_UNTIL_HOLE || lk_map_exists(ctx, j));
 				     j++) {
-					//print_bind(ctx, fd, buf[j], i, j, numeric);
 					print_keysym(ctx, fd, buf[j], numeric);
 				}
 				fprintf(fd, "\n");
@@ -604,4 +611,13 @@ void lk_dump_keymap(struct lk_ctx *ctx, FILE *fd, lk_table_shape table, char num
 	lk_dump_keymaps(ctx, fd);
 	lk_dump_keys(ctx, fd, table, numeric);
 	lk_dump_funcs(ctx, fd);
+}
+
+int lk_dump_keymap2(struct lk_ctx *ctx, FILE *fd, lk_table_shape table, char numeric)
+{
+	if (lk_add_constants(ctx) < 0)
+		return -1;
+
+	lk_dump_keymap(ctx, fd, table, numeric);
+	return 0;
 }

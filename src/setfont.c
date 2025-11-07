@@ -17,7 +17,7 @@
 static void KBD_ATTR_NORETURN
 usage(int retcode, const struct kbd_help *options)
 {
-	fprintf(stderr, _("Usage: %s [option...] [newfont...]\n"), get_progname());
+	fprintf(stderr, _("Usage: %s [option...] [newfont...]\n"), program_invocation_short_name);
 	fprintf(stderr, "\n");
 	fprintf(stderr, _("Loads the console font, and possibly the corresponding screen map(s).\n"));
 
@@ -70,8 +70,11 @@ kbd_getopt(int argc, char **argv, const struct kbd_option *opts)
 	if (!optind)
 		optind = 1;
 
-	if (optind >= argc || !argv[optind] || argv[optind][0] != '-')
+	if (optind >= argc || !argv[optind])
 		return -1;
+
+	if (argv[optind][0] != '-')
+		return '?';
 
 	option = argv[optind];
 
@@ -208,10 +211,9 @@ int main(int argc, char *argv[])
 		{ NULL, NULL, 0, 0 },
 	};
 
-	set_progname(argv[0]);
 	setuplocale();
 
-	if ((ret = kfont_init(get_progname(), &kfont)) < 0)
+	if ((ret = kfont_init(program_invocation_short_name, &kfont)) < 0)
 		return -ret;
 
 	ifiles[0] = mfil = ufil = Ofil = ofil = omfil = oufil = NULL;
@@ -285,8 +287,14 @@ int main(int argc, char *argv[])
 				usage(EXIT_SUCCESS, opthelp);
 				break;
 			case '?':
-				kbd_warning(0, "invalid option '%s'", argv[optind]);
-				usage(EX_USAGE, opthelp);
+				if (argv[optind][0] == '-') {
+					kbd_warning(0, "invalid option '%s'", argv[optind]);
+					usage(EX_USAGE, opthelp);
+				}
+
+				if (ifilct == MAXIFILES)
+					kbd_error(EX_USAGE, 0, _("Too many input files."));
+				ifiles[ifilct++] = argv[optind++];
 				break;
 		}
 	}

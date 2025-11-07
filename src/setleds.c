@@ -12,6 +12,7 @@
 #include <linux/kd.h>
 #include <sys/ioctl.h>
 
+#include "array_size.h"
 #include "libcommon.h"
 
 /**
@@ -29,7 +30,7 @@ static void KBD_ATTR_NORETURN
 usage(int rc, const struct kbd_help *options)
 {
 	fprintf(stderr, _("Usage: %s [option...] [[+|-][ num | caps | scroll %s]]\n"),
-			get_progname(),
+			program_invocation_short_name,
 #ifdef __sparc__
 	        "| compose "
 #else
@@ -167,7 +168,7 @@ parse_let_option(char *ap, unsigned char *nval, unsigned char *ndef,
 			break;
 	}
 
-	for (lp = leds; (unsigned)(lp - leds) < sizeof(leds) / sizeof(leds[0]); lp++) {
+	for (lp = leds; (unsigned)(lp - leds) < ARRAY_SIZE(leds); lp++) {
 		if (!strcmp(ap, lp->name)) {
 			if (sign) {
 				*nval |= lp->bit;
@@ -196,7 +197,6 @@ int main(int argc, char **argv)
 	unsigned char nval, ndef;
 	unsigned char osunleds = 0, nsunleds, nsunval, nsundef;
 
-	set_progname(argv[0]);
 	setuplocale();
 
 	const struct kbd_option opts[] = {

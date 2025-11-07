@@ -14,7 +14,6 @@
 
 #include "keymap.h"
 
-#include "libcommon.h"
 #include "contextP.h"
 
 int lk_kernel_keys(struct lk_ctx *ctx, int fd)
@@ -36,7 +35,7 @@ int lk_kernel_keys(struct lk_ctx *ctx, int fd)
 			ke.kb_index = (unsigned char) i;
 			ke.kb_value = 0;
 
-			if (ioctl(fd, KDGKBENT, (unsigned long)&ke)) {
+			if (ioctl(fd, KDGKBENT, &ke)) {
 				ERR(ctx, _("KDGKBENT: %s: error at index %d in table %d"),
 				    strerror(errno), i, t);
 				return -1;
@@ -68,7 +67,7 @@ int lk_kernel_funcs(struct lk_ctx *ctx, int fd)
 		}
 		kbs.kb_func = (unsigned char) i;
 
-		if (ioctl(fd, KDGKBSENT, (unsigned long)&kbs)) {
+		if (ioctl(fd, KDGKBSENT, &kbs)) {
 			ERR(ctx, _("KDGKBSENT: %s: Unable to get function key string"),
 			    strerror(errno));
 			return -1;
@@ -88,17 +87,17 @@ int lk_kernel_diacrs(struct lk_ctx *ctx, int fd)
 {
 #ifdef KDGKBDIACRUC
 	unsigned long request = KDGKBDIACRUC;
-	struct kbdiacrsuc kd;
+	struct kbdiacrsuc kd = { 0 };
 	struct kbdiacruc *ar = kd.kbdiacruc;
 #else
 	unsigned long request = KDGKBDIACR;
-	struct kbdiacrs kd;
+	struct kbdiacrs kd = { 0 };
 	struct kbdiacr *ar = kd.kbdiacr;
 #endif
 	int i;
-	struct lk_kbdiacr dcr;
+	struct lk_kbdiacr dcr = { 0 };
 
-	if (ioctl(fd, request, (unsigned long)&kd)) {
+	if (ioctl(fd, request, &kd)) {
 		ERR(ctx, _("KDGKBDIACR(UC): %s: Unable to get accent table"),
 		    strerror(errno));
 		return -1;
@@ -118,9 +117,11 @@ int lk_kernel_diacrs(struct lk_ctx *ctx, int fd)
 
 int lk_kernel_keymap(struct lk_ctx *ctx, int fd)
 {
-	if (lk_kernel_keys(ctx, fd) < 0 ||
-	    lk_kernel_funcs(ctx, fd) < 0 ||
-	    lk_kernel_diacrs(ctx, fd) < 0)
-		return -1;
-	return 0;
+	int ret = 0;
+
+	ret = ret ?: lk_kernel_keys(ctx, fd);
+	ret = ret ?: lk_kernel_funcs(ctx, fd);
+	ret = ret ?: lk_kernel_diacrs(ctx, fd);
+
+	return ret;
 }
