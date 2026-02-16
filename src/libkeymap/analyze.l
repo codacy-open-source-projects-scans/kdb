@@ -35,7 +35,7 @@ stack_push(struct lk_ctx *ctx, struct kbdfile *fp, void *scanner)
 {
 	int i = 0;
 
-	while (ctx->stack[i]) i++;
+	while (i < MAX_INCLUDE_DEPTH && ctx->stack[i]) i++;
 
 	if (i == MAX_INCLUDE_DEPTH) {
 		ERR(ctx, _("includes are nested too deeply"));
@@ -53,7 +53,7 @@ stack_pop(struct lk_ctx *ctx, void *scanner)
 {
 	int i = 0;
 
-	while (ctx->stack[i]) i++;
+	while (i < MAX_INCLUDE_DEPTH && ctx->stack[i]) i++;
 	if (!i)
 		return 0;
 	i--;
@@ -163,7 +163,7 @@ static int find_standard_incl_file(struct lk_ctx *ctx, char *filename,
 	int rc = 1;
 	int i = 0;
 
-	while (ctx->stack[i]) i++;
+	while (i < MAX_INCLUDE_DEPTH && ctx->stack[i]) i++;
 	if (i == 0)
 		return -1;
 	i--;
@@ -217,27 +217,37 @@ static int find_incl_file(struct lk_ctx *ctx, char *filename, struct kbdfile *fp
 
 	if ((ev = getenv("LOADKEYS_INCLUDE_PATH")) != NULL) {
 		/* try user-specified path */
+		char *path, *p;
 		const char *user_dir[2] = { NULL, NULL };
-		while (ev) {
+		path = strdup(ev);
+		if (!path) {
+			ERR(ctx, _("out of memory"));
+			return -1;
+		}
+
+		p = path;
+		while (p) {
 			int rc;
-			char *t = strchr(ev, ':');
-			char sv = 0;
-			if (t) {
-				sv = *t;
+			char *t = strchr(p, ':');
+
+			if (t)
 				*t = 0;
-			}
-			user_dir[0] = ev;
-			if (*ev)
+
+			user_dir[0] = p;
+			if (*p)
 				rc = kbdfile_find(filename, user_dir, include_suffixes, fp);
 			else	/* empty string denotes system path */
 				rc = find_standard_incl_file(ctx, filename, fp);
 
-			if (rc <= 0)
+			if (rc <= 0) {
+				free(path);
 				return rc;
-			if (t)
-				*t++ = sv;
-			ev = t;
+			}
+
+			p = t ? t + 1 : NULL;
 		}
+
+		free(path);
 		return 1;
 	}
 	return find_standard_incl_file(ctx, filename, fp);
