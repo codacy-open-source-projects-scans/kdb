@@ -6,10 +6,14 @@ AC_PREREQ([2.71])
 
 AC_INIT([kbd],[2.9.0],[gladkov.alexey@gmail.com],[kbd],[https://kbd-project.org/])
 
+AC_DEFINE_UNQUOTED([PACKAGE], ["$PACKAGE"], [Name of package])
+AC_DEFINE_UNQUOTED([VERSION], ["$VERSION"], [Package version])
+AC_DEFINE_UNQUOTED([PACKAGE_STRING], ["$PACKAGE_STRING"], [Package name and version])
+
 AC_CONFIG_AUX_DIR(config)
 AC_CONFIG_MACRO_DIR([m4])
 
-AM_INIT_AUTOMAKE([1.9 -Wall -Wno-portability color-tests tar-pax dist-xz])
+AM_INIT_AUTOMAKE([1.9 -Wall -Wno-portability subdir-objects color-tests tar-pax dist-xz])
 AC_CONFIG_SRCDIR([src/loadkeys.c])
 AC_CONFIG_TESTDIR([tests])
 AC_CONFIG_HEADERS([config.h])
@@ -386,6 +390,7 @@ AC_CONFIG_FILES([
 	tests/Makefile
 	tests/helpers/Makefile
 	tests/libcommon/Makefile
+	tests/libkfont/Makefile
 	tests/libkbdfile/Makefile
 	tests/libkeymap/Makefile
 ])

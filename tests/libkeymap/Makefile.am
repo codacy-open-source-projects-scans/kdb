@@ -1,18 +1,23 @@
 NULL =
 
 AM_CPPFLAGS = \
+	-D_GNU_SOURCE \
 	$(CODE_COVERAGE_CPPFLAGS) \
 	-I$(top_srcdir)/src/include \
 	-I$(top_srcdir)/src/libcommon \
+	-I$(top_srcdir)/src/libkeymap \
 	-DTESTDIR=\"$(realpath $(top_srcdir))/tests\"
 
 AM_CFLAGS = $(CHECK_CFLAGS) $(CODE_COVERAGE_CFLAGS)
+AM_LDFLAGS = $(CODE_COVERAGE_CFLAGS)
 
 LDADD  = \
 	$(top_builddir)/src/libcommon/libcommon.a \
 	$(top_builddir)/src/libkbdfile/libkbdfile.la \
 	$(top_builddir)/src/libkeymap/libkeymap.la \
 	@LIBINTL@ $(CODE_COVERAGE_LIBS)
+
+noinst_HEADERS = libkeymap-test.h
 
 noinst_PROGRAMS = \
 	libkeymap-test01 \
@@ -35,5 +40,30 @@ noinst_PROGRAMS = \
 	libkeymap-test18 \
 	libkeymap-test19 \
 	libkeymap-test20 \
+	libkeymap-test21 \
+	libkeymap-test22 \
+	libkeymap-test23 \
+	libkeymap-test24 \
+	libkeymap-test25 \
+	libkeymap-test26 \
+	libkeymap-test27 \
+	libkeymap-test28 \
+	libkeymap-test29 \
+	libkeymap-test30 \
+	libkeymap-test31 \
+	libkeymap-test32 \
+	libkeymap-test43 \
+	libkeymap-test44 \
+	libkeymap-test50 \
+	libkeymap-test51 \
+	libkeymap-test52 \
+	libkeymap-test53 \
 	$(NULL)
 
+libkeymap_test44_SOURCES = \
+	libkeymap-test44.c \
+	$(top_srcdir)/src/libkeymap/ksyms.c
+
+libkeymap_test44_CPPFLAGS = \
+	$(AM_CPPFLAGS) \
+	-I$(top_builddir)/src/libkeymap

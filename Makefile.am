@@ -1,7 +1,16 @@
-CODE_COVERAGE_DIRECTORY        = $(top_builddir)/src $(top_builddir)/tests
+CODE_COVERAGE_DIRECTORY        = \
+	$(top_builddir)/src/libkbdfile \
+	$(top_builddir)/src/libkeymap \
+	$(top_builddir)/src/libkfont \
+	$(top_builddir)/tests
 CODE_COVERAGE_OUTPUT_FILE      = coverage.info
 CODE_COVERAGE_OUTPUT_DIRECTORY = coverage
-CODE_COVERAGE_GENHTML_OPTIONS  = --ignore-errors range,range
+CODE_COVERAGE_LCOV_OPTIONS     = --ignore-errors gcov --gcov-tool "$(GCOV)"
+CODE_COVERAGE_GENHTML_OPTIONS  = --ignore-errors unmapped
+CODE_COVERAGE_IGNORE_PATTERN   = \
+	'*/src/libkeymap/analyze.l' \
+	'*/src/libkeymap/parser.y'
+COVERAGE_CHECK_KEYWORDS        = $(if $(CHECK_KEYWORDS),$(CHECK_KEYWORDS),unittest)
 
 include $(top_srcdir)/aminclude_static.am
 
@@ -36,6 +45,39 @@ CHECK  = $(SPARSE) \
 
 check-sparse:
 	make CC="cgcc" REAL_CC="$(CC)" CHECK="$(CHECK)" CFLAGS+="-D_LINUX_WAIT_H"
+
+.PHONY: coverage-build coverage-reset coverage-report
+
+coverage-build:
+if CODE_COVERAGE_ENABLED
+	$(MAKE) clean
+	$(MAKE) all
+else
+	@echo "Need to reconfigure with --enable-code-coverage"
+	@false
+endif
+
+coverage-reset:
+if CODE_COVERAGE_ENABLED
+	$(LCOV) $(addprefix --directory ,$(CODE_COVERAGE_DIRECTORY)) -z --ignore-errors gcov
+	-find $(CODE_COVERAGE_DIRECTORY) -name '*.gcov' -delete
+	-rm -rf "$(CODE_COVERAGE_OUTPUT_FILE)" "$(CODE_COVERAGE_OUTPUT_FILE).tmp" \
+		"$(CODE_COVERAGE_OUTPUT_DIRECTORY)"
+else
+	@echo "Need to reconfigure with --enable-code-coverage"
+	@false
+endif
+
+coverage-report:
+if CODE_COVERAGE_ENABLED
+	$(MAKE) coverage-build
+	$(MAKE) coverage-reset
+	$(MAKE) -C tests check CHECK_KEYWORDS="$(COVERAGE_CHECK_KEYWORDS)"
+	$(MAKE) code-coverage-capture
+else
+	@echo "Need to reconfigure with --enable-code-coverage"
+	@false
+endif
 
 .PHONY: compile_commands.json
 compile_commands.json:
