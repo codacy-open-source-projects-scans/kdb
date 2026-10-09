@@ -4,7 +4,7 @@
 #
 AC_PREREQ([2.71])
 
-AC_INIT([kbd],[2.9.0],[gladkov.alexey@gmail.com],[kbd],[https://kbd-project.org/])
+AC_INIT([kbd],[2.10.0],[gladkov.alexey@gmail.com],[kbd],[https://kbd-project.org/])
 
 AC_DEFINE_UNQUOTED([PACKAGE], ["$PACKAGE"], [Name of package])
 AC_DEFINE_UNQUOTED([VERSION], ["$VERSION"], [Package version])
@@ -85,8 +85,8 @@ AC_FUNC_STAT
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_FUNC_STRERROR_R
-AC_CHECK_FUNCS([alarm dup2 endpwent memset setlocale strcasecmp strerror \
-		strdup strndup strchr strrchr strspn strstr strtol])
+AC_CHECK_FUNCS([alarm dup2 endpwent memset setlocale strcasecmp strerror memfd_create \
+		reallocarray strdup strndup strchr strrchr strspn strstr strtol])
 
 AC_SEARCH_LIBS([timer_create], [rt])
 
@@ -235,7 +235,9 @@ AS_IF(
 	[test "x$enable_compress" = xno],   [],
 	[test "x$enable_compress" = xyes],  [AC_CHECK_PROGS([COMPRESS_PROG], [zstd xz bzip2 "gzip -n"])],
 	[test "x$enable_compress" = xauto], [AC_CHECK_PROGS([COMPRESS_PROG], ["gzip -n"])],
-	[AC_CHECK_PROGS([COMPRESS_PROG], ["$enable_compress"])]
+	[AC_CHECK_PROGS([COMPRESS_PROG], ["$enable_compress"]),
+		AS_IF([test "x$COMPRESS_PROG" = x],
+		      [AC_MSG_ERROR([$enable_compress program required for compressing installed data.])])]
 )
 AM_CONDITIONAL(ENABLE_COMPRESS, test "x$COMPRESS_PROG" != "x")
 
@@ -267,16 +269,24 @@ AS_IF([test "$VLOCK_PROG" = "yes"], [
 ])
 AM_CONDITIONAL(VLOCK, test "$VLOCK_PROG" = "yes")
 
+AS_IF([test "$enable_dlopen" = "yes" -a "$ac_cv_func_memfd_create" = "yes"],
+      [enable_kbdfile_elfnote=yes],
+      [enable_kbdfile_elfnote=no])
+AM_CONDITIONAL(USE_ELFNOTE, test "$enable_kbdfile_elfnote" = "yes")
+
 AC_ARG_WITH([zlib],
 	[AS_HELP_STRING([--with-zlib],
 			[support zlib compression @<:@default=auto@:>@])],
 	[],
-	[: m4_divert_text([DEFAULTS], [with_zlib=yes])]
+	[: m4_divert_text([DEFAULTS], [with_zlib=auto])]
 )
-AS_IF([test "$with_zlib" != "no"],
+AS_IF([test "$with_zlib" != "no" -a "$enable_kbdfile_elfnote" = "yes"],
 	[PKG_CHECK_MODULES(ZLIB, zlib, [HAVE_ZLIB=yes], [HAVE_ZLIB=no])],
 	[HAVE_ZLIB=no]
 )
+AS_IF([test "x$with_zlib" = xyes -a "$HAVE_ZLIB" != "yes"], [
+	AC_MSG_ERROR([zlib support was requested, but zlib is not available.])
+])
 AS_IF([test "$HAVE_ZLIB" = "yes"], [
 	AC_DEFINE([HAVE_ZLIB], [1], [support zlib compression])
 ])
@@ -286,18 +296,21 @@ AC_ARG_WITH([bzip2],
 	[AS_HELP_STRING([--with-bzip2],
 			[support bzip2 compression @<:@default=auto@:>@])],
 	[],
-	[: m4_divert_text([DEFAULTS], [with_bzip2=yes])]
+	[: m4_divert_text([DEFAULTS], [with_bzip2=auto])]
 )
-AS_IF([test "$with_bzip2" != "no"],
-	[PKG_CHECK_MODULES(BZIP2, bzip2, [HAVE_BZIP2=yes], [HAVE_BZIP2=no])],
+AS_IF([test "$with_bzip2" != "no" -a "$enable_kbdfile_elfnote" = "yes"],
+	[PKG_CHECK_MODULES(BZIP2, bzip2, [HAVE_BZIP2=yes], [HAVE_BZIP2=auto])],
 	[HAVE_BZIP2=no]
 )
-AS_IF([test "$HAVE_BZIP2" = "no"], [
+AS_IF([test "$HAVE_BZIP2" = "auto"], [
 	AC_CHECK_LIB(bz2, BZ2_bzDecompressInit, [
 		HAVE_BZIP2=yes
 		BZIP2_LIBS=-lbz2
 		BZIP2_CFLAGS=''
 	], [HAVE_BZIP2=no])
+])
+AS_IF([test "x$with_bzip2" = xyes -a "$HAVE_BZIP2" != "yes"], [
+	AC_MSG_ERROR([bzip2 support was requested, but bzip2 is not available.])
 ])
 AS_IF([test "$HAVE_BZIP2" = "yes"], [
 	AC_DEFINE([HAVE_BZIP2], [1], [support bzip2 compression])
@@ -308,12 +321,15 @@ AC_ARG_WITH([lzma],
 	[AS_HELP_STRING([--with-lzma],
 			[support lzma compression @<:@default=auto@:>@])],
 	[],
-	[: m4_divert_text([DEFAULTS], [with_lzma=yes])]
+	[: m4_divert_text([DEFAULTS], [with_lzma=auto])]
 )
-AS_IF([test "$with_lzma" != "no"],
+AS_IF([test "$with_lzma" != "no" -a "$enable_kbdfile_elfnote" = "yes"],
 	[PKG_CHECK_MODULES(LZMA, liblzma, [HAVE_LZMA=yes], [HAVE_LZMA=no])],
 	[HAVE_LZMA=no]
 )
+AS_IF([test "x$with_lzma" = xyes -a "$HAVE_LZMA" != "yes"], [
+	AC_MSG_ERROR([lzma support was requested, but liblzma is not available.])
+])
 AS_IF([test "$HAVE_LZMA" = "yes"], [
 	AC_DEFINE([HAVE_LZMA], [1], [support lzma compression])
 ])
@@ -323,12 +339,15 @@ AC_ARG_WITH([zstd],
 	[AS_HELP_STRING([--with-zstd],
 			[support zstd compression @<:@default=auto@:>@])],
 	[],
-	[: m4_divert_text([DEFAULTS], [with_zstd=yes])]
+	[: m4_divert_text([DEFAULTS], [with_zstd=auto])]
 )
-AS_IF([test "$with_zstd" != "no"],
+AS_IF([test "$with_zstd" != "no" -a "$enable_kbdfile_elfnote" = "yes"],
 	[PKG_CHECK_MODULES(ZSTD, libzstd, [HAVE_ZSTD=yes], [HAVE_ZSTD=no])],
 	[HAVE_ZSTD=no]
 )
+AS_IF([test "x$with_zstd" = xyes -a "$HAVE_ZSTD" != "yes"], [
+	AC_MSG_ERROR([zstd support was requested, but libzstd is not available.])
+])
 AS_IF([test "$HAVE_ZSTD" = "yes"], [
 	AC_DEFINE([HAVE_ZSTD], [1], [support zstd compression])
 ])
@@ -358,6 +377,27 @@ AM_CONDITIONAL(TESTS_MEMCHECK, test "x$VALGRIND_PROG" != "x")
 
 AC_CHECK_PROG([HAVE_DOXYGEN], [doxygen], [yes], [no])
 AM_CONDITIONAL(HAVE_DOXYGEN, test "$HAVE_DOXYGEN" = "yes")
+
+AC_ARG_ENABLE([xkb],
+	[AS_HELP_STRING([--enable-xkb],
+			[allow to generate kernel keymaps based on xkb database @<:@default=auto@:>@])],
+	[USE_XKB=$enableval],[USE_XKB=auto])
+AS_IF([test "x$USE_XKB" = xyes],
+	[PKG_CHECK_MODULES(XKBCOMMON, [xkbcommon],
+			   [],
+			   [AC_MSG_ERROR([xkbcommon library required for xkb support.])])
+	 PKG_CHECK_MODULES(XKBREGISTRY, [xkbregistry],
+			   [],
+			   [AC_MSG_ERROR([xkbregistry library required for xkb support.])])
+	 USE_XKB=yes],
+	[AS_IF([test "x$USE_XKB" = xauto],
+		[PKG_CHECK_MODULES([XKBCOMMON], [xkbcommon], [USE_XKB=yes], [USE_XKB=no])
+		 AS_IF([test "x$USE_XKB" = xyes],
+		       [PKG_CHECK_MODULES([XKBREGISTRY], [xkbregistry],
+					 [USE_XKB=yes],
+					 [USE_XKB=no])])],
+		[USE_XKB=no])])
+AM_CONDITIONAL(USE_XKB, test "$USE_XKB" = "yes")
 
 AC_MSG_NOTICE([generation of Makefiles...])
 
@@ -421,4 +461,5 @@ AC_MSG_RESULT([
 	- with dlopen libzstd:  ${HAVE_ZSTD}
 	standalone libkeymap:   ${BUILD_LIBKEYMAP}
 	standalone libkfont:    ${BUILD_LIBKFONT}
+	xkb support:            ${USE_XKB}
 ])

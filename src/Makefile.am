@@ -25,6 +25,8 @@ endif
 dist_bin_SCRIPTS = unicode_start unicode_stop
 bin_PROGRAMS = $(OLDPROGS) $(PROGS)
 
+noinst_HEADERS = include/kbd/reallocarray.h
+
 EXTRA_DIST = \
 	wctomb.c \
 	totextmode.c README.cad README.init README.openvt \
@@ -76,6 +78,16 @@ showconsolefont_LDADD = libkfont/libkfont.la $(COMMON_LIBS)
 
 dumpkeys_LDADD        = libkeymap/libkeymap.la libkbdfile/libkbdfile.la $(COMMON_LIBS)
 loadkeys_LDADD        = libkeymap/libkeymap.la libkbdfile/libkbdfile.la $(COMMON_LIBS)
+
+loadkeys_SOURCES = loadkeys.c
+
+if USE_XKB
+loadkeys_SOURCES += xkbsupport.c
+loadkeys_CFLAGS = -DUSE_XKB @XKBCOMMON_CFLAGS@ @XKBREGISTRY_CFLAGS@
+loadkeys_LDADD += @XKBCOMMON_LIBS@ @XKBREGISTRY_LIBS@
+endif
+
+EXTRA_DIST += include/xkbsupport.h xkbsupport.c
 
 install-exec-hook:
 	for i in psfaddtable psfgettable psfstriptable; do \
